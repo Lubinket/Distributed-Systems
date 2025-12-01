@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Integrated Cloud Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <style>
+    .glass-effect {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+  </style>
+</head>
+
+<body class="gradient-bg min-h-screen text-white" x-data="adminApp()">
+  <!-- Navigation -->
+  <nav class="glass-effect border-b border-white/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-xl font-bold">🔧 Admin Panel - Cloud Platform</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span x-text="user.full_name || user.username"></span>
+          <a href="/dashboard" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+            User Dashboard
+          </a>
+          <button @click="logout" class="bg-red-500/20 hover:bg-red-500/30 px-4 py-2 rounded-lg transition">
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- System Overview -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <h2 class="text-2xl font-bold mb-6">System Overview</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Total Users</p>
+          <p class="text-3xl font-bold" x-text="metrics.total_users"></p>
+          <p class="text-sm text-green-400">+<span x-text="metrics.active_users"></span> active</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Total Nodes</p>
+          <p class="text-3xl font-bold" x-text="metrics.total_nodes"></p>
+          <p class="text-sm text-blue-400">Running</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">System Uptime</p>
+          <p class="text-3xl font-bold" x-text="formatUptime(metrics.system_uptime)"></p>
+          <p class="text-sm text-gray-400">Days</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Active Transfers</p>
+          <p class="text-3xl font-bold" x-text="metrics.active_transfers"></p>
+          <p class="text-sm text-yellow-400">In progress</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div class="glass-effect rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">User Growth</h3>
+        <canvas id="userGrowthChart" width="400" height="200"></canvas>
+      </div>
+      <div class="glass-effect rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">Resource Utilization</h3>
+        <canvas id="resourceChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- User Management -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-semibold">User Management</h3>
+        <div class="flex space-x-3">
+          <input type="text" x-model="userSearch" @input="filterUsers" placeholder="Search users..."
+            class="px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50">
+          <button @click="refreshUsers" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Users Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-white/20">
+              <th class="text-left py-3 px-4">Username</th>
+              <th class="text-left py-3 px-4">Email</th>
+              <th class="text-left py-3 px-4">Status</th>
+              <th class="text-left py-3 px-4">Storage Quota</th>
+              <th class="text-left py-3 px-4">Last Login</th>
+              <th class="text-left py-3 px-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="user in filteredUsers" :key="user.username">
+              <tr class="border-b border-white/10 hover:bg-white/5">
+                <td class="py-3 px-4">
+                  <div class="flex items-center">
+                    <span x-text="user.username"></span>
+                    <span x-show="user.is_admin"
+                      class="ml-2 bg-yellow-500/20 text-yellow-300 text-xs px-2 py-1 rounded">Admin</span>
+                  </div>
+                </td>
+                <td class="py-3 px-4" x-text="user.email"></td>
+                <td class="py-3 px-4">
+                  <span :class="user.is_active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'"
+                    class="text-xs px-2 py-1 rounded">
+                    <span x-text="user.is_active ? 'Active' : 'Inactive'"></span>
+                  </span>
+                </td>
+                <td class="py-3 px-4">
+                  <span x-text="user.storage_quota_gb"></span> GB
+                </td>
+                <td class="py-3 px-4">
+                  <span x-show="user.last_login" x-text="formatDate(user.last_login)"></span>
+                  <span x-show="!user.last_login" class="text-gray-400">Never</span>
+                </td>
+                <td class="py-3 px-4">
+                  <div class="flex space-x-2">
+                    <button @click="editUserQuota(user)"
+                      class="bg-blue-500/20 hover:bg-blue-500/30 px-3 py-1 rounded text-sm transition">
+                      Edit Quota
+                    </button>
+                    <button @click="toggleUserStatus(user)"
+                      :class="user.is_active ? 'bg-red-500/20 hover:bg-red-500/30' : 'bg-green-500/20 hover:bg-green-500/30'"
+                      class="px-3 py-1 rounded text-sm transition">
+                      <span x-text="user.is_active ? 'Deactivate' : 'Activate'"></span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- System Analytics -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <h3 class="text-xl font-semibold mb-6">System Analytics</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div>
+          <h4 class="font-semibold mb-3">User Activity</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-gray-300">Daily Active Users</span>
+              <span x-text="analytics.daily_active_users"></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">Weekly Signups</span>
+              <span x-text="analytics.weekly_signups"></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">Total Logins Today</span>
+              <span x-text="analytics.daily_logins"></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3">Storage Analytics</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-gray-300">Total Storage Used</span>
+              <span x-text="analytics.total_storage_used_gb.toFixed(2)"></span> GB
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">Average Storage per User</span>
+              <span x-text="analytics.avg_storage_per_user.toFixed(2)"></span> GB
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">Files Stored System-wide</span>
+              <span x-text="analytics.total_files_stored"></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3">Performance Metrics</h4>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-gray-300">Avg Response Time</span>
+              <span x-text="analytics.avg_response_time_ms"></span> ms
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">CPU Usage</span>
+              <span x-text="analytics.cpu_usage_percent"></span>%
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-300">Memory Usage</span>
+              <span x-text="analytics.memory_usage_percent"></span>%
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resource Allocation -->
+    <div class="glass-effect rounded-xl p-6">
+      <h3 class="text-xl font-semibold mb-6">Resource Allocation per User</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h4 class="font-semibold mb-3">Top Storage Consumers</h4>
+          <div class="space-y-2">
+            <template x-for="user in topStorageUsers" :key="user.username">
+              <div class="flex justify-between items-center">
+                <span x-text="user.username"></span>
+                <div class="flex items-center">
+                  <div class="w-24 bg-white/20 rounded-full h-2 mr-2">
+                    <div class="bg-blue-500 h-2 rounded-full" :style="`width: ${user.usage_percentage}%`"></div>
+                  </div>
+                  <span x-text="user.storage_used_gb.toFixed(1)"></span> GB
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3">Node Distribution</h4>
+          <div class="space-y-2">
+            <template x-for="user in topNodeUsers" :key="user.username">
+              <div class="flex justify-between items-center">
+                <span x-text="user.username"></span>
+                <span class="bg-white/20 px-2 py-1 rounded text-sm">
+                  <span x-text="user.node_count"></span> nodes
+                </span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Quota Modal -->
+  <div x-show="showEditQuota" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="glass-effect rounded-xl p-6 w-full max-w-md">
+      <h3 class="text-xl font-semibold mb-4">Edit User Quota</h3>
+      <div class="mb-4">
+        <p class="text-gray-300 mb-2">User: <span x-text="selectedUser?.username"></span></p>
+        <p class="text-gray-300 mb-4">Current quota: <span x-text="selectedUser?.storage_quota_gb"></span> GB</p>
+      </div>
+      <form @submit.prevent="updateUserQuota">
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">New Storage Quota (GB)</label>
+          <input type="number" x-model="newQuota" min="1" max="100" required
+            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+        </div>
+        <div class="flex space-x-3">
+          <button type="submit" :disabled="updatingQuota"
+            class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-2 rounded-lg transition disabled:opacity-50">
+            <span x-show="!updatingQuota">Update Quota</span>
+            <span x-show="updatingQuota">Updating...</span>
+          </button>
+          <button type="button" @click="showEditQuota = false; updatingQuota = false"
+            class="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-lg transition">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div x-show="message" x-text="message"
+    :class="messageType === 'error' ? 'bg-red-500/20 text-red-200 border-red-500/30' : 'bg-green-500/20 text-green-200 border-green-500/30'"
+    class="fixed bottom-4 right-4 p-4 rounded-lg border max-w-md z-50"></div>
+
+  <script>
+    function adminApp() {
+      return {
+        user: {{ user | tojson }
+      }
+      }
+    users: [],
+      filteredUsers: [],
+        metrics: {
+      total_users: 0,
+        active_users: 0,
+          total_nodes: 0,
+            system_uptime: 0,
+              active_transfers: 0
+      }
+    analytics: {
+      daily_active_users: 0,
+        weekly_signups: 0,
+          daily_logins: 0,
+            total_storage_used_gb: 0,
+              avg_storage_per_user: 0,
+                total_files_stored: 0,
+                  avg_response_time_ms: 0,
+                    cpu_usage_percent: 0,
+                      memory_usage_percent: 0
+      }
+    topStorageUsers: [],
+      topNodeUsers: [],
+        userSearch: '',
+          showEditQuota: false,
+            selectedUser: null,
+              newQuota: 0,
+                updatingQuota: false,
+                  message: '',
+                    messageType: 'info',
+                      socket: null,
+                        userGrowthChart: null,
+                          resourceChart: null,
+
+                            init() {
+      this.loadUsers();
+      this.loadMetrics();
+      this.loadAnalytics();
+      this.initSocket();
+      this.initCharts();
+
+      // Auto-refresh data
+      setInterval(() => {
+        this.loadMetrics();
+        } 30000);
+      }
+                
+                async loadUsers() {
+      try {
+        const response = await fetch('/api/admin/users');
+        const data = await response.json();
+        this.users = data.users || [];
+        this.filteredUsers = this.users;
+        this.calculateTopUsers();
+      } catch (error) {
+        console.error('Failed to load users:', error);
+      }
+      }
+                
+                async loadMetrics() {
+      try {
+        const response = await fetch('/api/admin/system/metrics');
+        const data = await response.json();
+        this.metrics = { ...this.metrics, ...data };
+      } catch (error) {
+        console.error('Failed to load metrics:', error);
+      }
+      }
+
+    loadAnalytics() {
+      // Simulated analytics data - in real app, this would come from API
+      this.analytics = {
+        daily_active_users: Math.floor(this.metrics.active_users * 0.8),
+        weekly_signups: Math.floor(Math.random() * 10) + 1,
+        daily_logins: Math.floor(Math.random() * 50) + 20,
+        total_storage_used_gb: (this.metrics.total_users * 2.5),
+        avg_storage_per_user: 2.5,
+        total_files_stored: Math.floor(this.metrics.total_users * 15),
+        avg_response_time_ms: Math.floor(Math.random() * 100) + 50,
+        cpu_usage_percent: Math.floor(Math.random() * 30) + 20,
+        memory_usage_percent: Math.floor(Math.random() * 40) + 30
+      };
+      }
+
+    calculateTopUsers() {
+      // Simulate top storage users
+      this.topStorageUsers = this.users.slice(0, 5).map(user => ({
+        username: user.username,
+        storage_used_gb: Math.random() * 8 + 1,
+        usage_percentage: Math.random() * 80 + 10
+      })).sort((a, b) => b.storage_used_gb - a.storage_used_gb);
+
+      // Simulate top node users
+      this.topNodeUsers = this.users.slice(0, 5).map(user => ({
+        username: user.username,
+        node_count: Math.floor(Math.random() * 3) + 1
+      })).sort((a, b) => b.node_count - a.node_count);
+      }
+
+    filterUsers() {
+      const search = this.userSearch.toLowerCase();
+      this.filteredUsers = this.users.filter(user =>
+        user.username.toLowerCase().includes(search) ||
+        user.email.toLowerCase().includes(search)
+      );
+      }
+                
+                async refreshUsers() {
+      await this.loadUsers();
+      this.showMessage('Users refreshed successfully', 'success');
+      }
+
+    editUserQuota(user) {
+      this.selectedUser = user;
+      this.newQuota = user.storage_quota_gb;
+      this.showEditQuota = true;
+      }
+                
+                async updateUserQuota() {
+      this.updatingQuota = true;
+
+      try {
+        const response = await fetch(`/api/admin/users/${this.selectedUser.username}/quota`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quota_gb: this.newQuota })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          this.showMessage('User quota updated successfully!', 'success');
+          this.showEditQuota = false;
+          this.loadUsers();
+        } else {
+          this.showMessage('Failed to update user quota', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Failed to update user quota', 'error');
+      }
+
+      this.updatingQuota = false;
+      }
+                
+                async toggleUserStatus(user) {
+      const action = user.is_active ? 'deactivate' : 'activate';
+
+      if (!confirm(`Are you sure you want to ${action} user ${user.username}?`)) {
+        return;
+      }
+
+      try {
+        // In a real implementation, this would call an API endpoint
+        user.is_active = !user.is_active;
+        this.showMessage(`User ${action}d successfully`, 'success');
+      } catch (error) {
+        this.showMessage(`Failed to ${action} user`, 'error');
+      }
+      }
+
+    initSocket() {
+      this.socket = io();
+      this.socket.on('connect', () => {
+        console.log('Connected to server');
+      });
+
+      this.socket.on('system_metrics', (data) => {
+        this.metrics = { ...this.metrics, ...data };
+        this.updateCharts();
+      });
+      }
+
+    initCharts() {
+      // User Growth Chart
+      const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+      this.userGrowthChart = new Chart(userGrowthCtx, {
+        type: 'line',
+        data: {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+          datasets: [{
+            label: 'Total Users',
+            data: [10, 25, 45, 70, 95, this.metrics.total_users],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.4
+            } {
+            label: 'Active Users',
+            data: [8, 20, 35, 55, 75, this.metrics.active_users],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4
+          }]
+          }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#fff' }
+            }
+            }
+          scales: {
+            y: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+              }
+            x: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            }
+          }
+        }
+      });
+
+      // Resource Chart
+      const resourceCtx = document.getElementById('resourceChart').getContext('2d');
+      this.resourceChart = new Chart(resourceCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Storage', 'CPU', 'Memory', 'Network'],
+          datasets: [{
+            label: 'Usage %',
+            data: [
+              (this.analytics.total_storage_used_gb / (this.metrics.total_users * 10)) * 100,
+              this.analytics.cpu_usage_percent,
+              this.analytics.memory_usage_percent,
+              Math.random() * 60 + 20
+            ],
+            backgroundColor: [
+              'rgba(139, 92, 246, 0.8)',
+              'rgba(239, 68, 68, 0.8)',
+              'rgba(16, 185, 129, 0.8)',
+              'rgba(245, 158, 11, 0.8)'
+            ]
+          }]
+          }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#fff' }
+            }
+            }
+          scales: {
+            y: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' },
+              max: 100
+              }
+            x: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            }
+          }
+        }
+      });
+      }
+
+    updateCharts() {
+      if (this.userGrowthChart) {
+        this.userGrowthChart.data.datasets[0].data[5] = this.metrics.total_users;
+        this.userGrowthChart.data.datasets[1].data[5] = this.metrics.active_users;
+        this.userGrowthChart.update();
+      }
+      }
+
+    formatUptime(seconds) {
+      const days = Math.floor(seconds / 86400);
+      return days;
+      }
+
+    formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      }
+
+    showMessage(message, type = 'info') {
+      this.message = message;
+      this.messageType = type;
+      setTimeout(() => {
+        this.message = '';
+        } 5000);
+      }
+
+    logout() {
+      fetch('/api/auth/logout', { method: 'POST' })
+        .then(() => window.location.href = '/');
+    }
+            }
+        }
+  </script>
+</body>
+
+</html>

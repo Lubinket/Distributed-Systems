@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Compiled python files
+*.pyc
+
+# Editor/temp files
+.DS_Store
+Thumbs.db
+*.swp
+
+# Ignore virtual storage disk images and large binaries from the copied folder
+Web Application Update/CloudSim/virtual_storage/
+Web Application Update/**/disk.img
+Web Application Update/**/*.img
+
+# Ignore other distribution/build artifacts
+dist/
+build/
+env/

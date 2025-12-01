@@ -1,0 +1,6 @@
+Hello CloudSim!
+This is a test file for the distributed storage system.
+It demonstrates file upload and distribution across nodes.
+
+Engineer Moone's Distributed Systems Project
+CloudSim - Distributed Storage System Simulation

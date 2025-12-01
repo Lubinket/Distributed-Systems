@@ -1,0 +1,295 @@
+<script>
+    function adminApp() {
+      return {
+        user: {{ user | tojson }},
+        users: [],
+        filteredUsers: [],
+        metrics: {
+          total_users: 0,
+          active_users: 0,
+          total_nodes: 0,
+          system_uptime: 0,
+          active_transfers: 0
+        },
+        analytics: {
+          daily_active_users: 0,
+          weekly_signups: 0,
+          daily_logins: 0,
+          total_storage_used_gb: 0,
+          avg_storage_per_user: 0,
+          total_files_stored: 0,
+          avg_response_time_ms: 0,
+          cpu_usage_percent: 0,
+          memory_usage_percent: 0
+        },
+        topStorageUsers: [],
+        topNodeUsers: [],
+        userSearch: '',
+        showEditQuota: false,
+        selectedUser: null,
+        newQuota: 0,
+        updatingQuota: false,
+        message: '',
+        messageType: 'info',
+        socket: null,
+        userGrowthChart: null,
+        resourceChart: null,
+        
+        init() {
+          this.loadUsers();
+          this.loadMetrics();
+          this.loadAnalytics();
+          this.initSocket();
+          this.initCharts();
+          
+          // Auto-refresh data
+          setInterval(() => {
+            this.loadMetrics();
+          }, 30000);
+        },
+        
+        async loadUsers() {
+          try {
+            const response = await fetch('/api/admin/users');
+            const data = await response.json();
+            this.users = data.users || [];
+            this.filteredUsers = this.users;
+            this.calculateTopUsers();
+          } catch (error) {
+            console.error('Failed to load users:', error);
+          }
+        },
+        
+        async loadMetrics() {
+          try {
+            const response = await fetch('/api/admin/system/metrics');
+            const data = await response.json();
+            this.metrics = { ...this.metrics, ...data };
+          } catch (error) {
+            console.error('Failed to load metrics:', error);
+          }
+        },
+        
+        loadAnalytics() {
+          // Simulated analytics data - in real app, this would come from API
+          this.analytics = {
+            daily_active_users: Math.floor(this.metrics.active_users * 0.8),
+            weekly_signups: Math.floor(Math.random() * 10) + 1,
+            daily_logins: Math.floor(Math.random() * 50) + 20,
+            total_storage_used_gb: (this.metrics.total_users * 2.5),
+            avg_storage_per_user: 2.5,
+            total_files_stored: Math.floor(this.metrics.total_users * 15),
+            avg_response_time_ms: Math.floor(Math.random() * 100) + 50,
+            cpu_usage_percent: Math.floor(Math.random() * 30) + 20,
+            memory_usage_percent: Math.floor(Math.random() * 40) + 30
+          };
+        },
+        
+        calculateTopUsers() {
+          // Simulate top storage users
+          this.topStorageUsers = this.users.slice(0, 5).map(user => ({
+            username: user.username,
+            storage_used_gb: Math.random() * 8 + 1,
+            usage_percentage: Math.random() * 80 + 10
+          })).sort((a, b) => b.storage_used_gb - a.storage_used_gb);
+          
+          // Simulate top node users
+          this.topNodeUsers = this.users.slice(0, 5).map(user => ({
+            username: user.username,
+            node_count: Math.floor(Math.random() * 3) + 1
+          })).sort((a, b) => b.node_count - a.node_count);
+        },
+        
+        filterUsers() {
+          const search = this.userSearch.toLowerCase();
+          this.filteredUsers = this.users.filter(user => 
+            user.username.toLowerCase().includes(search) ||
+            user.email.toLowerCase().includes(search)
+          );
+        },
+        
+        async refreshUsers() {
+          await this.loadUsers();
+          this.showMessage('Users refreshed successfully', 'success');
+        },
+        
+        editUserQuota(user) {
+          this.selectedUser = user;
+          this.newQuota = user.storage_quota_gb;
+          this.showEditQuota = true;
+        },
+        
+        async updateUserQuota() {
+          this.updatingQuota = true;
+          
+          try {
+            const response = await fetch(`/api/admin/users/${this.selectedUser.username}/quota`, {
+              method: 'PUT',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ quota_gb: this.newQuota })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              this.showMessage('User quota updated successfully!', 'success');
+              this.showEditQuota = false;
+              this.loadUsers();
+            } else {
+              this.showMessage('Failed to update user quota', 'error');
+            }
+          } catch (error) {
+            this.showMessage('Failed to update user quota', 'error');
+          }
+          
+          this.updatingQuota = false;
+        },
+        
+        async toggleUserStatus(user) {
+          const action = user.is_active ? 'deactivate' : 'activate';
+          
+          if (!confirm(`Are you sure you want to ${action} user ${user.username}?`)) {
+            return;
+          }
+          
+          try {
+            // In a real implementation, this would call an API endpoint
+            user.is_active = !user.is_active;
+            this.showMessage(`User ${action}d successfully`, 'success');
+          } catch (error) {
+            this.showMessage(`Failed to ${action} user`, 'error');
+          }
+        },
+        
+        initSocket() {
+          this.socket = io();
+          this.socket.on('connect', () => {
+            console.log('Connected to server');
+          });
+          
+          this.socket.on('system_metrics', (data) => {
+            this.metrics = { ...this.metrics, ...data };
+            this.updateCharts();
+          });
+        },
+        
+        initCharts() {
+          // User Growth Chart
+          const userGrowthCtx = document.getElementById('userGrowthChart').getContext('2d');
+          this.userGrowthChart = new Chart(userGrowthCtx, {
+            type: 'line',
+            data: {
+              labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+              datasets: [{
+                label: 'Total Users',
+                data: [10, 25, 45, 70, 95, this.metrics.total_users],
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                tension: 0.4
+              }, {
+                label: 'Active Users',
+                data: [8, 20, 35, 55, 75, this.metrics.active_users],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: { color: '#fff' }
+                }
+              },
+              scales: {
+                y: {
+                  ticks: { color: '#fff' },
+                  grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                },
+                x: {
+                  ticks: { color: '#fff' },
+                  grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                }
+              }
+            }
+          });
+          
+          // Resource Chart
+          const resourceCtx = document.getElementById('resourceChart').getContext('2d');
+          this.resourceChart = new Chart(resourceCtx, {
+            type: 'bar',
+            data: {
+              labels: ['Storage', 'CPU', 'Memory', 'Network'],
+              datasets: [{
+                label: 'Usage %',
+                data: [
+                  (this.analytics.total_storage_used_gb / (this.metrics.total_users * 10)) * 100,
+                  this.analytics.cpu_usage_percent,
+                  this.analytics.memory_usage_percent,
+                  Math.random() * 60 + 20
+                ],
+                backgroundColor: [
+                  'rgba(139, 92, 246, 0.8)',
+                  'rgba(239, 68, 68, 0.8)',
+                  'rgba(16, 185, 129, 0.8)',
+                  'rgba(245, 158, 11, 0.8)'
+                ]
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  labels: { color: '#fff' }
+                }
+              },
+              scales: {
+                y: {
+                  ticks: { color: '#fff' },
+                  grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                  max: 100
+                },
+                x: {
+                  ticks: { color: '#fff' },
+                  grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                }
+              }
+            }
+          });
+        },
+        
+        updateCharts() {
+          if (this.userGrowthChart) {
+            this.userGrowthChart.data.datasets[0].data[5] = this.metrics.total_users;
+            this.userGrowthChart.data.datasets[1].data[5] = this.metrics.active_users;
+            this.userGrowthChart.update();
+          }
+        },
+        
+        formatUptime(seconds) {
+          const days = Math.floor(seconds / 86400);
+          return days;
+        },
+        
+        formatDate(dateString) {
+          const date = new Date(dateString);
+          return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        },
+        
+        showMessage(message, type = 'info') {
+          this.message = message;
+          this.messageType = type;
+          setTimeout(() => {
+            this.message = '';
+          }, 5000);
+        },
+        
+        logout() {
+          fetch('/api/auth/logout', {method: 'POST'})
+            .then(() => window.location.href = '/');
+        }
+      }
+    }
+  </script>

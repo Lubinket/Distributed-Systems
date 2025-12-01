@@ -1,0 +1,12 @@
+<!-- This is a fix for the JavaScript syntax issue -->
+<!-- The problem is in the user: {{ user | tojson }} line -->
+<!-- It should be: user: {{ user | tojson }}, -->
+
+<!-- Manual fix needed for dashboard.html line 302: -->
+<!-- Change: user: {{ user | tojson }},| tojson }} -->
+<!-- To: user: {{ user | tojson }}, -->
+
+<!-- Manual fix needed for admin.html line 289: -->
+<!-- Same fix applies -->
+
+<!-- After fixing these lines, the application should work correctly -->

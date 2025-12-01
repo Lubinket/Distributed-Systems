@@ -1,0 +1,113 @@
+{
+  "Lubinket": {
+    "user_id": "fa1ec819f9a5a5d6582f5941dd066736",
+    "username": "Lubinket",
+    "email": "lubinket96@gmail.com",
+    "full_name": "Luiza bess",
+    "password_hash": "$2b$12$f2HmAIKhTOcTDKJZqbd6RO4sMCfCIw0GzE/moGspj79E7T3FsOrnG",
+    "is_active": false,
+    "is_admin": true,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-11-30T17:15:19.513191",
+    "last_login": null,
+    "phone": null,
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    }
+  },
+  "lois": {
+    "user_id": "d2b3d1c953e10aa41cd3ff286eaff050",
+    "username": "lois",
+    "email": "lubinket96@gmail.com",
+    "full_name": "lois",
+    "password_hash": "$2b$12$G1w6XgGah5mdEwYgKSFHoeXSEmdF118axhloHbp3Si6ktcpYLIZ6m",
+    "is_active": false,
+    "is_admin": false,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-11-30T17:17:19.512052",
+    "last_login": null,
+    "phone": null,
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    }
+  },
+  "ntamack": {
+    "user_id": "acbf60bd20d38a0e1cf8e8f7781b5ade",
+    "username": "ntamack",
+    "email": "nebamishael.amabo@ictuniversity.edu.cm",
+    "full_name": "daniel",
+    "password_hash": "$2b$12$vUswDHhertlu7uly2YRsZe69GwsAxTmaT3KL1APLyvInPUb8Q7tbW",
+    "is_active": false,
+    "is_admin": false,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-11-30T19:06:32.032098",
+    "last_login": null,
+    "phone": null,
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    }
+  },
+  "banks": {
+    "user_id": "87a66437e54a788a11dd9375b0232454",
+    "username": "banks",
+    "email": "nebamishael.amabo@ictuniversity.edu.cm",
+    "full_name": "tah rapheal",
+    "password_hash": "$2b$12$ZJXIJkyNWxvhfi/6p3TzF.QShhF4DPpkYiATdixWYh1oAypVi/QEa",
+    "is_active": true,
+    "is_admin": false,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-11-30T21:25:21.091938",
+    "last_login": "2025-11-30T21:26:55.552145",
+    "phone": null,
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    }
+  },
+  "linda": {
+    "user_id": "15926480d94ff1cb337be62453c38841",
+    "username": "linda",
+    "email": "lubinket96@gmail.com",
+    "full_name": "li",
+    "password_hash": "$2b$12$omA7G.hDpxmvF3wbyM1g3e5i2dmi.NRhfJKxp5/3eC62O2KTTrrhG",
+    "is_active": true,
+    "is_admin": false,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-12-01T06:18:33.512914",
+    "last_login": "2025-12-01T09:19:23.161780",
+    "phone": "",
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    },
+    "notifications": true,
+    "theme": "auto",
+    "language": "en"
+  },
+  "luiza": {
+    "user_id": "79bfa0d4da1374a31e3ca4aa6f66afd2",
+    "username": "luiza",
+    "email": "lubinket96@gmail.com",
+    "full_name": "luiza",
+    "password_hash": "$2b$12$LCXrs9UTUw.ZKmjmjMytH.Lth/Upo.c4UXmzMeJlBarHOw3NDO5Ya",
+    "is_active": true,
+    "is_admin": false,
+    "storage_quota_gb": 10.0,
+    "created_at": "2025-12-01T09:43:09.565779",
+    "last_login": "2025-12-01T09:44:04.995560",
+    "phone": null,
+    "profile_settings": {
+      "theme": "light",
+      "notifications": true,
+      "language": "en"
+    }
+  }
+}

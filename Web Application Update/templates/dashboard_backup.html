@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Integrated Cloud Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <style>
+    .glass-effect {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+  </style>
+</head>
+
+<body class="gradient-bg min-h-screen text-white" x-data="dashboardApp()">
+  <!-- Navigation -->
+  <nav class="glass-effect border-b border-white/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-xl font-bold">☁️ Cloud Platform</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span x-text="user.full_name || user.username"></span>
+          <button @click="logout" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- User Info Card -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <h2 class="text-2xl font-bold mb-4">Welcome back, <span x-text="user.full_name || user.username"></span>!</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Storage Quota</p>
+          <p class="text-2xl font-bold"><span x-text="user.storage_quota_gb"></span> GB</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Active Nodes</p>
+          <p class="text-2xl font-bold" x-text="stats.total_nodes"></p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4">
+          <p class="text-gray-300 text-sm">Files Stored</p>
+          <p class="text-2xl font-bold" x-text="stats.files_stored"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage Overview -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <div class="glass-effect rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">Storage Usage</h3>
+        <div class="mb-4">
+          <div class="flex justify-between mb-2">
+            <span>Used: <span x-text="stats.used_storage_gb.toFixed(2)"></span> GB</span>
+            <span>Total: <span x-text="stats.total_storage_gb.toFixed(2)"></span> GB</span>
+          </div>
+          <div class="w-full bg-white/20 rounded-full h-4">
+            <div class="bg-gradient-to-r from-blue-400 to-purple-500 h-4 rounded-full transition-all duration-500"
+              :style="`width: ${storagePercentage}%`"></div>
+          </div>
+          <p class="text-sm text-gray-300 mt-2" x-text="`${storagePercentage.toFixed(1)}% used`"></p>
+        </div>
+        <canvas id="storageChart" width="400" height="200"></canvas>
+      </div>
+
+      <div class="glass-effect rounded-xl p-6">
+        <h3 class="text-xl font-semibold mb-4">System Activity</h3>
+        <canvas id="activityChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Node Management -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-xl font-semibold">Your Cloud Nodes</h3>
+        <button @click="showCreateNode = true"
+          class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-4 py-2 rounded-lg transition">
+          + Create Node
+        </button>
+      </div>
+
+      <!-- Nodes Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="node in nodes" :key="node.node_id">
+          <div class="bg-white/10 rounded-lg p-4 border border-white/20">
+            <div class="flex justify-between items-start mb-3">
+              <h4 class="font-semibold" x-text="node.node_id"></h4>
+              <span class="bg-green-500/20 text-green-300 text-xs px-2 py-1 rounded">Active</span>
+            </div>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-300">IP:Port:</span>
+                <span x-text="`${node.ip}:${node.port}`"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-300">Uptime:</span>
+                <span x-text="formatUptime(node.uptime)"></span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-300">Storage:</span>
+                <span x-text="`${node.storage.allocated_blocks}/${node.storage.total_blocks} blocks`"></span>
+              </div>
+            </div>
+            <div class="mt-3 flex space-x-2">
+              <button @click="manageNode(node)"
+                class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm transition">
+                Manage
+              </button>
+              <button @click="viewNodeDetails(node)"
+                class="bg-white/20 hover:bg-white/30 px-3 py-1 rounded text-sm transition">
+                Details
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Empty State -->
+      <div x-show="nodes.length === 0" class="text-center py-12">
+        <p class="text-gray-400 mb-4">No cloud nodes created yet</p>
+        <button @click="showCreateNode = true"
+          class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-6 py-2 rounded-lg transition">
+          Create Your First Node
+        </button>
+      </div>
+    </div>
+
+    <!-- File Operations -->
+    <div class="glass-effect rounded-xl p-6 mb-8">
+      <h3 class="text-xl font-semibold mb-6">File Operations</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white/10 rounded-lg p-4 text-center hover:bg-white/20 transition cursor-pointer"
+          @click="showFileUpload = true">
+          <div class="text-3xl mb-2">📤</div>
+          <h4 class="font-semibold">Upload File</h4>
+          <p class="text-sm text-gray-300">Distribute files across nodes</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4 text-center hover:bg-white/20 transition cursor-pointer"
+          @click="showFileBrowser = true">
+          <div class="text-3xl mb-2">📁</div>
+          <h4 class="font-semibold">Browse Files</h4>
+          <p class="text-sm text-gray-300">View your stored files</p>
+        </div>
+        <div class="bg-white/10 rounded-lg p-4 text-center hover:bg-white/20 transition cursor-pointer"
+          @click="showFileSharing = true">
+          <div class="text-3xl mb-2">🔗</div>
+          <h4 class="font-semibold">Share Files</h4>
+          <p class="text-sm text-gray-300">Share with other users</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Settings -->
+    <div class="glass-effect rounded-xl p-6">
+      <h3 class="text-xl font-semibold mb-6">Account Settings</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h4 class="font-semibold mb-3">Profile Information</h4>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+              <input type="text" x-model="profileForm.full_name"
+                class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+              <input type="email" x-model="profileForm.email"
+                class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+              <input type="tel" x-model="profileForm.phone"
+                class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+            </div>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-3">Preferences</h4>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-300">Email Notifications</label>
+              <input type="checkbox" x-model="profileForm.notifications"
+                class="w-4 h-4 rounded bg-white/20 border border-white/30">
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-300">Theme</label>
+              <select x-model="profileForm.theme"
+                class="px-3 py-1 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto</option>
+              </select>
+            </div>
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium text-gray-300">Language</label>
+              <select x-model="profileForm.language"
+                class="px-3 py-1 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+                <option value="es">Español</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6">
+        <button @click="updateProfile" :disabled="updatingProfile"
+          class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-6 py-2 rounded-lg transition disabled:opacity-50">
+          <span x-show="!updatingProfile">Save Changes</span>
+          <span x-show="updatingProfile">Saving...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Node Modal -->
+  <div x-show="showCreateNode" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="glass-effect rounded-xl p-6 w-full max-w-md">
+      <h3 class="text-xl font-semibold mb-4">Create New Cloud Node</h3>
+      <form @submit.prevent="createNode">
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Storage Capacity (GB)</label>
+          <input type="number" x-model="newNodeCapacity" min="1" max="10" required
+            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Node Type</label>
+          <select x-model="newNodeType"
+            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white focus:outline-none focus:ring-2 focus:ring-white/50">
+            <option value="storage">Storage Node</option>
+            <option value="compute">Compute Node</option>
+            <option value="hybrid">Hybrid Node</option>
+          </select>
+        </div>
+        <div class="flex space-x-3">
+          <button type="submit" :disabled="creatingNode"
+            class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-2 rounded-lg transition disabled:opacity-50">
+            <span x-show="!creatingNode">Create Node</span>
+            <span x-show="creatingNode">Creating...</span>
+          </button>
+          <button type="button" @click="showCreateNode = false; creatingNode = false"
+            class="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-lg transition">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- File Upload Modal -->
+  <div x-show="showFileUpload" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="glass-effect rounded-xl p-6 w-full max-w-md">
+      <h3 class="text-xl font-semibold mb-4">Upload File</h3>
+      <form @submit.prevent="uploadFile" enctype="multipart/form-data">
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Select File</label>
+          <input type="file" @change="handleFileSelect" required
+            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-white/20 file:text-white">
+        </div>
+        <div x-show="selectedFile" class="mb-4 text-sm text-gray-300">
+          Selected: <span x-text="selectedFile"></span>
+        </div>
+        <div class="flex space-x-3">
+          <button type="submit" :disabled="uploadingFile"
+            class="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-2 rounded-lg transition disabled:opacity-50">
+            <span x-show="!uploadingFile">Upload</span>
+            <span x-show="uploadingFile">Uploading...</span>
+          </button>
+          <button type="button" @click="showFileUpload = false; uploadingFile = false; selectedFile = null"
+            class="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-lg transition">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div x-show="message" x-text="message"
+    :class="messageType === 'error' ? 'bg-red-500/20 text-red-200 border-red-500/30' : 'bg-green-500/20 text-green-200 border-green-500/30'"
+    class="fixed bottom-4 right-4 p-4 rounded-lg border max-w-md z-50"></div>
+
+  <script>
+    function dashboardApp() {
+      return {
+        user: {{ user | tojson }},| tojson }
+    },
+    nodes: [],
+      stats: {
+      total_nodes: 0,
+        total_storage_gb: 0,
+          used_storage_gb: 0,
+            files_stored: 0,
+              active_transfers: 0
+    },
+    showCreateNode: false,
+      showFileUpload: false,
+        showFileBrowser: false,
+          showFileSharing: false,
+            newNodeCapacity: 2,
+              newNodeType: 'storage',
+                creatingNode: false,
+                  uploadingFile: false,
+                    updatingProfile: false,
+                      selectedFile: null,
+                        message: '',
+                          messageType: 'info',
+                            socket: null,
+                              storageChart: null,
+                                activityChart: null,
+                                  profileForm: {
+      full_name: '',
+        email: '',
+          phone: '',
+            notifications: true,
+              theme: 'light',
+                language: 'en'
+    },
+
+    init() {
+      this.loadUserData();
+      this.loadNodes();
+      this.loadStats();
+      this.initSocket();
+      this.initCharts();
+      this.loadProfile();
+
+      // Auto-refresh data
+      setInterval(() => {
+        this.loadStats();
+      }, 30000);
+    },
+                
+                async loadUserData() {
+      try {
+        const response = await fetch('/api/user/profile');
+        const data = await response.json();
+        this.user = data.user;
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+      }
+    },
+                
+                async loadNodes() {
+      try {
+        const response = await fetch('/api/user/nodes');
+        const data = await response.json();
+        this.nodes = data.nodes || [];
+      } catch (error) {
+        console.error('Failed to load nodes:', error);
+      }
+    },
+                
+                async loadStats() {
+      try {
+        const response = await fetch('/api/user/storage/stats');
+        const data = await response.json();
+        this.stats = { ...this.stats, ...data };
+        this.updateCharts();
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    },
+                
+                async loadProfile() {
+      this.profileForm = {
+        full_name: this.user.full_name || '',
+        email: this.user.email || '',
+        phone: this.user.phone || '',
+        notifications: this.user.profile_settings?.notifications || true,
+        theme: this.user.profile_settings?.theme || 'light',
+        language: this.user.profile_settings?.language || 'en'
+      };
+    },
+                
+                async updateProfile() {
+      this.updatingProfile = true;
+
+      try {
+        const response = await fetch('/api/user/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.profileForm)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          this.showMessage('Profile updated successfully!', 'success');
+          this.loadUserData();
+        } else {
+          this.showMessage('Failed to update profile', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Failed to update profile', 'error');
+      }
+
+      this.updatingProfile = false;
+    },
+                
+                async createNode() {
+      this.creatingNode = true;
+
+      try {
+        const response = await fetch('/api/user/nodes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            capacity_gb: this.newNodeCapacity,
+            node_type: this.newNodeType
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          this.showMessage('Node created successfully!', 'success');
+          this.showCreateNode = false;
+          this.loadNodes();
+          this.loadStats();
+        } else {
+          this.showMessage(result.message || 'Failed to create node', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Failed to create node', 'error');
+      }
+
+      this.creatingNode = false;
+    },
+
+    handleFileSelect(event) {
+      this.selectedFile = event.target.files[0]?.name;
+    },
+                
+                async uploadFile() {
+      this.uploadingFile = true;
+
+      try {
+        const formData = new FormData();
+        const fileInput = document.querySelector('input[type="file"]');
+        formData.append('file', fileInput.files[0]);
+
+        const response = await fetch('/api/user/files/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          this.showMessage('File uploaded successfully!', 'success');
+          this.showFileUpload = false;
+          this.selectedFile = null;
+          this.loadStats();
+        } else {
+          this.showMessage(result.message || 'Failed to upload file', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Failed to upload file', 'error');
+      }
+
+      this.uploadingFile = false;
+    },
+
+    initSocket() {
+      this.socket = io();
+      this.socket.on('connect', () => {
+        console.log('Connected to server');
+        this.socket.emit('join_user_room', { user_id: this.user.user_id });
+      });
+
+      this.socket.on('system_metrics', (data) => {
+        console.log('System metrics:', data);
+      });
+    },
+
+    initCharts() {
+      // Storage Chart
+      const storageCtx = document.getElementById('storageChart').getContext('2d');
+      this.storageChart = new Chart(storageCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Used Storage', 'Free Storage'],
+          datasets: [{
+            data: [0, 100],
+            backgroundColor: ['#8b5cf6', '#374151'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#fff' }
+            }
+          }
+        }
+      });
+
+      // Activity Chart
+      const activityCtx = document.getElementById('activityChart').getContext('2d');
+      this.activityChart = new Chart(activityCtx, {
+        type: 'line',
+        data: {
+          labels: ['1h ago', '45m ago', '30m ago', '15m ago', 'Now'],
+          datasets: [{
+            label: 'File Operations',
+            data: [2, 5, 3, 8, 6],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#fff' }
+            }
+          },
+          scales: {
+            y: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            },
+            x: {
+              ticks: { color: '#fff' },
+              grid: { color: 'rgba(255, 255, 255, 0.1)' }
+            }
+          }
+        }
+      });
+    },
+
+    updateCharts() {
+      if (this.storageChart) {
+        const usedPercentage = (this.stats.used_storage_gb / this.stats.total_storage_gb) * 100;
+        this.storageChart.data.datasets[0].data = [usedPercentage, 100 - usedPercentage];
+        this.storageChart.update();
+      }
+    },
+                
+                get storagePercentage() {
+      if (this.stats.total_storage_gb === 0) return 0;
+      return (this.stats.used_storage_gb / this.stats.total_storage_gb) * 100;
+    },
+
+    formatUptime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    },
+
+    showMessage(message, type = 'info') {
+      this.message = message;
+      this.messageType = type;
+      setTimeout(() => {
+        this.message = '';
+      }, 5000);
+    },
+
+    logout() {
+      fetch('/api/auth/logout', { method: 'POST' })
+        .then(() => window.location.href = '/');
+    },
+
+    manageNode(node) {
+      this.showMessage(`Managing node: ${node.node_id}`, 'info');
+    },
+
+    viewNodeDetails(node) {
+      this.showMessage(`Viewing details for: ${node.node_id}`, 'info');
+    }
+            }
+        }
+  </script>
+</body>
+
+</html>

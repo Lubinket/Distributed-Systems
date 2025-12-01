@@ -1,0 +1,6 @@
+{
+  "system_name": "Integrated Cloud Platform",
+  "default_user_quota_gb": 10,
+  "max_nodes_per_user": 5,
+  "admin_email": "admin@cloudplatform.com"
+}
